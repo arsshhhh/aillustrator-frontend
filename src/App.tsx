@@ -17,7 +17,7 @@ function App() {
     setNotes("");
     setLoading(true);
 
-    const res = await fetch("http://127.0.0.1:8000/generate-stream", {
+    const res = await fetch("https://web-production-2dd1.up.railway.app/generate-stream", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
