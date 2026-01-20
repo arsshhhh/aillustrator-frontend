@@ -1,100 +1,99 @@
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
-import { Loader2, Sparkles } from "lucide-react"
+import { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 
 function App() {
   const [topic, setTopic] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const generateNotes = async () => {
-    if (!topic.trim()) return;
+    if (!topic) return;
 
     setNotes("");
     setLoading(true);
 
-    const res = await fetch("https://web-production-2dd1.up.railway.app/generate-stream", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt: topic }),
-    });
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
-    if (!res.body) {
+    try {
+      const res = await fetch(
+        "https://web-production-2dd1.up.railway.app/generate-stream",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt: topic }),
+          signal: controller.signal,
+        }
+      );
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) return;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        setNotes((prev) => prev + decoder.decode(value));
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+      }
+    } finally {
       setLoading(false);
-      return;
+      abortControllerRef.current = null;
     }
+  };
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      setNotes((prev) => prev + chunk);
-    }
-
+  const stopGeneration = () => {
+    abortControllerRef.current?.abort();
     setLoading(false);
   };
 
-   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-6">
-      <Card className="w-full max-w-3xl shadow-lg rounded-2xl">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-2xl font-semibold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-primary" />
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+      <Card className="w-full max-w-3xl">
+        <CardContent className="space-y-4 p-6">
+          <h1 className="text-2xl font-semibold">
             AI Notes Generator
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Generate structured academic notes instantly using AI.
-          </p>
-        </CardHeader>
+          </h1>
 
-        <CardContent className="space-y-4">
           <Textarea
-            placeholder="Enter a topic (e.g. Photosynthesis, DBMS Normalization...)"
+            placeholder="Enter a topic..."
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            className="resize-none"
           />
 
-          <Button
-            onClick={generateNotes}
-            disabled={loading || !topic.trim()}
-            className="w-full"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating notes...
-              </>
-            ) : (
-              "Generate Notes"
+          <div className="flex gap-2">
+            <Button onClick={generateNotes} disabled={loading}>
+              Generate
+            </Button>
+
+            {loading && (
+              <Button
+                variant="destructive"
+                onClick={stopGeneration}
+              >
+                Stop
+              </Button>
             )}
-          </Button>
+          </div>
 
-          {notes && (
-            <>
-              <Separator />
-
-              <ScrollArea className="h-[400px] rounded-md border p-4">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed font-sans">
-                  {notes}
-                </pre>
-              </ScrollArea>
-            </>
-          )}
+          <pre className="whitespace-pre-wrap text-sm bg-muted p-4 rounded-lg max-h-[400px] overflow-auto">
+            {notes}
+          </pre>
         </CardContent>
       </Card>
-    </main>
-  )
+    </div>
+  );
 }
 
 export default App;
