@@ -53,7 +53,7 @@ function App() {
 
     try {
       const res = await fetch(
-        "http://127.0.0.1:8000/generate-stream",
+        "https://web-production-2dd1.up.railway.app/generate-stream",
         {
           method: "POST",
           headers: {
